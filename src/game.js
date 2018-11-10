@@ -48,6 +48,8 @@ class BattleScene extends util.CompositeEntity {
 
     this.shootWasPressed = false;
 
+    world.on("beginContact", this.onBeginContact.bind(this));
+
     // Graphics:
     const bg = new PIXI.Graphics();
     bg.beginFill(0xffffff);
@@ -64,8 +66,6 @@ class BattleScene extends util.CompositeEntity {
     this.physicsContainer.scale.y = -PHYSICS_ZOOM; // Note: we flip the y axis to make "up" the physics "up"
 
 
-    world.defaultContactMaterial.friction = 100;
-
     // Create ground shape (plane)
     const planeShape = new p2.Plane({
       collisionGroup: COLLISION_GROUPS.GROUND,
@@ -76,6 +76,7 @@ class BattleScene extends util.CompositeEntity {
       position: [0, -2],
       mass:0,  // Mass == 0 makes the body static
     });
+    planeBody.role = "ground";
     planeBody.addShape(planeShape); // Add the shape to the body
     world.addBody(planeBody);       // Add the body to the World
 
@@ -161,7 +162,6 @@ class BattleScene extends util.CompositeEntity {
 
     if(navigator.getGamepads()[0].buttons[7].pressed) {
       if(!this.shootWasPressed) {
-        console.log("shoot");
         this.shootWasPressed = true;
 
         const bulletVelocity = [
@@ -174,6 +174,7 @@ class BattleScene extends util.CompositeEntity {
           position: this.chassisBody.position,
           velocity: bulletVelocity,
         });
+        bulletBody.role = "bullet";
         const bulletShape = new p2.Circle({ 
           radius: 0.1,
           collisionGroup: COLLISION_GROUPS.PLAYER_1,
@@ -197,6 +198,28 @@ class BattleScene extends util.CompositeEntity {
     super.update(options);
   }
 
+  onBeginContact(e) {
+    // console.log(e.bodyA.id, e.bodyB.id);
+
+    if(e.bodyA.role === "bullet") {
+      this.handleBulletContact(e.bodyA);
+    } else if(e.bodyB.role === "bullet") {
+      this.handleBulletContact(e.bodyB);
+    }
+  }
+
+  handleBulletContact(bulletBody) {
+    for(const childEntity of this.entities) {
+      if(childEntity.body === bulletBody) {
+        this.physicsContainer.removeChild(childEntity.graphics);
+        this.removeEntity(childEntity);
+
+        break;
+      }
+    }
+
+    world.removeBody(bulletBody); 
+  }
 }
 
 
@@ -291,11 +314,10 @@ let fontLoaderProgress = 0;
 let audioLoaderProgress = 0;
 
 const world = new p2.World({
-    gravity: [0,-10] // Set gravity to -10 in y direction
+  gravity: [0,-10] // Set gravity to -10 in y direction
 });
 
 world.defaultContactMaterial.friction = 100;
-
 
 window.addEventListener("gamepadconnected", function(e) {
   console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
