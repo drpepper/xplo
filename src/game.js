@@ -7,6 +7,21 @@ const APP_SIZE = new PIXI.Point(960, 540);
 
 const PHYSICS_ZOOM = 100;
 
+const COLLISION_GROUPS = {
+  GROUND: Math.pow(2,0),
+  PLAYER_1: Math.pow(2,1),
+};
+
+const COLLISION_MASKS = {
+  GROUND: COLLISION_GROUPS.PLAYER_1,
+  PLAYER_1: COLLISION_GROUPS.GROUND,
+}
+
+
+const MOTOR_SPEED = 10;
+const BULLET_SPEED = 10;
+
+
 // String of characters to look for in icon font
 const FONT_OBSERVER_CHARS = "asdf";
 
@@ -15,6 +30,9 @@ const STARTING_SCENE = "battle";
 const GRAPHICAL_ASSETS = [
   "loading-circle.png",
   "play.png",
+  "wheel.png",
+  "box.png",
+  "bullet.png",
 ];
 
 const MUSIC_ASSETS = [];
@@ -28,48 +46,155 @@ class BattleScene extends util.CompositeEntity {
   setup(config) {
     super.setup(config);
 
-    // Add a box
-    const boxShape = new p2.Box({ width: 2, height: 1 });
-    this.boxBody = new p2.Body({
-        mass:1,
-        position:[0,2],
-        angularVelocity:1
-    });
-    this.boxBody.addShape(boxShape);
-    world.addBody(this.boxBody);
+    this.shootWasPressed = false;
 
-    // Add a plane
-    const planeShape = new p2.Plane();
-    const planeBody = new p2.Body({ position:[0,-1] });
-    planeBody.addShape(planeShape);
-    world.addBody(planeBody);
+    // Graphics:
+    const bg = new PIXI.Graphics();
+    bg.beginFill(0xffffff);
+    bg.drawRect(0, 0, this.config.app.renderer.width, this.config.app.renderer.height);
+    this.container.addChild(bg);
 
-    const physicsContainer = new PIXI.Container();
-    this.container.addChild(physicsContainer);
+    this.physicsContainer = new PIXI.Container();
+    this.container.addChild(this.physicsContainer);
 
     // Add transform to the container
-    physicsContainer.position.x = this.config.app.renderer.width/2; // center at origin
-    physicsContainer.position.y = this.config.app.renderer.height/2;
-    physicsContainer.scale.x =  PHYSICS_ZOOM;  // zoom in
-    physicsContainer.scale.y = -PHYSICS_ZOOM; // Note: we flip the y axis to make "up" the physics "up"
+    this.physicsContainer.position.x = this.config.app.renderer.width/2; // center at origin
+    this.physicsContainer.position.y = this.config.app.renderer.height/2;
+    this.physicsContainer.scale.x =  PHYSICS_ZOOM;  // zoom in
+    this.physicsContainer.scale.y = -PHYSICS_ZOOM; // Note: we flip the y axis to make "up" the physics "up"
+
+
+    world.defaultContactMaterial.friction = 100;
+
+    // Create ground shape (plane)
+    const planeShape = new p2.Plane({
+      collisionGroup: COLLISION_GROUPS.GROUND,
+      collisionMask: COLLISION_MASKS.GROUND,
+    });
+    // Create a body for the ground
+    const planeBody = new p2.Body({
+      position: [0, -2],
+      mass:0,  // Mass == 0 makes the body static
+    });
+    planeBody.addShape(planeShape); // Add the shape to the body
+    world.addBody(planeBody);       // Add the body to the World
+
+
+    this.chassisBody = new p2.Body({
+        mass : 1,        // Setting mass > 0 makes it dynamic
+        position: [-4,1], // Initial position,
+        angle: Math.PI / 4,
+    });
+    this.chassisShape = new p2.Box({ 
+      width: 1, 
+      height: 0.5,
+      collisionGroup: COLLISION_GROUPS.PLAYER_1,
+      collisionMask: COLLISION_MASKS.PLAYER_1,
+    });
+    this.chassisBody.addShape(this.chassisShape);
+    world.addBody(this.chassisBody);
     
-    // Draw the box.
-    this.graphics = new PIXI.Graphics();
-    this.graphics.beginFill(0xff0000);
-    this.graphics.drawRect(-boxShape.width/2, -boxShape.height/2, boxShape.width, boxShape.height);
-    // Add the box to our container
-    physicsContainer.addChild(this.graphics);
+    // Create wheels
+    this.wheelBody1 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] - 0.5,0.7] });
+    this.wheelBody2 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] + 0.5,0.7] });
+    const wheelShape1 = new p2.Circle({ 
+      radius: 0.2,
+      collisionGroup: COLLISION_GROUPS.PLAYER_1,
+      collisionMask: COLLISION_MASKS.PLAYER_1,
+    });
+    const wheelShape2 = new p2.Circle({ 
+      radius: 0.2,
+      collisionGroup: COLLISION_GROUPS.PLAYER_1,
+      collisionMask: COLLISION_MASKS.PLAYER_1,
+     });
+    this.wheelBody1.addShape(wheelShape1);
+    this.wheelBody2.addShape(wheelShape2);
+    world.addBody(this.wheelBody1);
+    world.addBody(this.wheelBody2);
+
+    // Constrain wheels to chassis with revolute constraints.
+    // Revolutes lets the connected bodies rotate around a shared point.
+    this.revoluteBack = new p2.RevoluteConstraint(this.chassisBody, this.wheelBody1, {
+        localPivotA: [-0.5, -0.3],   // Where to hinge first wheel on the chassis
+        localPivotB: [0, 0],
+        collideConnected: false
+    });
+    world.addConstraint(this.revoluteBack);
+
+    this.revoluteFront = new p2.RevoluteConstraint(this.chassisBody, this.wheelBody2, {
+        localPivotA: [0.5, -0.3], // Where to hinge second wheel on the chassis
+        localPivotB: [0, 0],      // Where the hinge is in the wheel (center)
+        collideConnected: false
+    });
+    world.addConstraint(this.revoluteFront);
+
+    // Enable the constraint motor for the back wheel
+    // this.revoluteBack.motorEnabled = true;
+    this.revoluteBack.enableMotor();
+    this.revoluteBack.setMotorSpeed(0); // Rotational speed in radians per second
+
+    this.revoluteFront.enableMotor();
+    this.revoluteFront.setMotorSpeed(0); // Rotational speed in radians per second
+
+
+
+    this.chassisGraphics = makePhysicsSprite("images/box.png");
+    this.physicsContainer.addChild(this.chassisGraphics);
+    this.addEntity(new util.PhysicsEntity(this.chassisBody, this.chassisGraphics));
+
+    this.backWheelGraphics = makePhysicsSprite("images/wheel.png");
+    this.physicsContainer.addChild(this.backWheelGraphics);
+    this.addEntity(new util.PhysicsEntity(this.wheelBody1, this.backWheelGraphics));
+
+    this.frontWheelGraphics = makePhysicsSprite("images/wheel.png");
+    this.physicsContainer.addChild(this.frontWheelGraphics);
+    this.addEntity(new util.PhysicsEntity(this.wheelBody2, this.frontWheelGraphics));
+
 
     return this.container;
   }
 
-  update() {
+  update(options) {
+    const speed = navigator.getGamepads()[0].axes[0] * MOTOR_SPEED;
+    this.revoluteBack.setMotorSpeed(speed);
+    this.revoluteFront.setMotorSpeed(speed);
+
+    if(navigator.getGamepads()[0].buttons[7].pressed) {
+      if(!this.shootWasPressed) {
+        console.log("shoot");
+        this.shootWasPressed = true;
+
+        const bulletVelocity = [
+          navigator.getGamepads()[0].axes[2] * BULLET_SPEED,
+          -navigator.getGamepads()[0].axes[3] * BULLET_SPEED,
+        ];
+
+        const bulletBody = new p2.Body({
+          mass: 0.1, 
+          position: this.chassisBody.position,
+          velocity: bulletVelocity,
+        });
+        const bulletShape = new p2.Circle({ 
+          radius: 0.1,
+          collisionGroup: COLLISION_GROUPS.PLAYER_1,
+          collisionMask: COLLISION_MASKS.PLAYER_1,
+        });
+        bulletBody.addShape(bulletShape);
+        world.addBody(bulletBody);
+
+        const bulletGraphics = makePhysicsSprite("images/bullet.png");
+        this.physicsContainer.addChild(bulletGraphics);
+
+        this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
+      }
+    } else if(this.shootWasPressed) {
+      this.shootWasPressed = false;
+    }
+
      // Move physics bodies forward in time
     world.step(1/60);
-    // Transfer positions of the physics objects to Pixi.js
-    this.graphics.position.x = this.boxBody.position[0];
-    this.graphics.position.y = this.boxBody.position[1];
-    this.graphics.rotation =   this.boxBody.angle;
+
+    super.update(options);
   }
 
 }
@@ -102,7 +227,16 @@ function provideNextScene(currentSceneName, currentSceneParams, requestedTransit
 
 
 function makeSprite(name) { 
-  return new PIXI.Sprite(app.loader.resources[name].texture);
+  const sprite = new PIXI.Sprite(app.loader.resources[name].texture);
+  sprite.anchor.set(0.5);
+  return sprite;
+}
+
+function makePhysicsSprite(name) { 
+  const sprite = new PIXI.Sprite(app.loader.resources[name].texture);
+  sprite.anchor.set(0.5);
+  sprite.scale.set(1/PHYSICS_ZOOM);
+  return sprite;
 }
 
 function getFramesForSpriteSheet(name) {
@@ -156,7 +290,18 @@ let pixiLoaderProgress = 0;
 let fontLoaderProgress = 0;
 let audioLoaderProgress = 0;
 
-const world = new p2.World();
+const world = new p2.World({
+    gravity: [0,-10] // Set gravity to -10 in y direction
+});
+
+world.defaultContactMaterial.friction = 100;
+
+
+window.addEventListener("gamepadconnected", function(e) {
+  console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
+    e.gamepad.index, e.gamepad.id,
+    e.gamepad.buttons.length, e.gamepad.axes.length);
+});
 
 
 function updateLoadingProgress() {

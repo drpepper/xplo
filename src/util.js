@@ -1401,6 +1401,25 @@ export class DoneScene extends CompositeEntity {
   }
 }
 
+export class PhysicsEntity extends Entity {
+  constructor(body, graphics) {
+    super();
+
+    this.body = body;
+    this.graphics = graphics;
+  }
+
+  update(options) {
+    super.update(options);
+
+    // Transfer positions of the physics objects to Pixi.js
+    this.graphics.position.x = this.body.position[0];
+    this.graphics.position.y = this.body.position[1];
+    this.graphics.rotation = this.body.angle;
+  }
+}
+
+
 
 export function makeNarrationKeyList(prefix, count) {
   const list = [];
