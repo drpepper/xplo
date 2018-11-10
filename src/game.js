@@ -6,6 +6,7 @@ import "../node_modules/url-search-params-polyfill/index.js";
 const APP_SIZE = new PIXI.Point(960, 540);
 
 const PHYSICS_ZOOM = 100;
+const INITIAL_ZOOM = 50;
 
 const COLLISION_GROUPS = {
   GROUND: Math.pow(2,0),
@@ -77,23 +78,73 @@ class BattleScene extends util.CompositeEntity {
     // Add transform to the container
     this.physicsContainer.position.x = this.config.app.renderer.width/2; // center at origin
     this.physicsContainer.position.y = this.config.app.renderer.height/2;
-    this.physicsContainer.scale.x =  PHYSICS_ZOOM;  // zoom in
-    this.physicsContainer.scale.y = -PHYSICS_ZOOM; // Note: we flip the y axis to make "up" the physics "up"
+    this.physicsContainer.scale.x =  INITIAL_ZOOM;  // zoom in
+    this.physicsContainer.scale.y = -INITIAL_ZOOM; // Note: we flip the y axis to make "up" the physics "up"
 
 
-    // Create ground shape (plane)
-    const planeShape = new p2.Plane({
-      collisionGroup: COLLISION_GROUPS.GROUND,
-      collisionMask: COLLISION_MASKS.GROUND,
-    });
-    // Create a body for the ground
-    const planeBody = new p2.Body({
-      position: [0, -2],
-      mass:0,  // Mass == 0 makes the body static
-    });
-    planeBody.role = "ground";
-    planeBody.addShape(planeShape); // Add the shape to the body
-    world.addBody(planeBody);       // Add the body to the World
+    {   
+      // Create ground shape (plane)
+       const planeShape = new p2.Plane({
+        collisionGroup: COLLISION_GROUPS.GROUND,
+        collisionMask: COLLISION_MASKS.GROUND,
+      });
+      // Create a body for the ground
+      const planeBody = new p2.Body({
+        position: [0, -4],
+        mass: 0,  // Mass == 0 makes the body static
+      });
+      planeBody.role = "ground";
+      planeBody.addShape(planeShape); // Add the shape to the body
+      world.addBody(planeBody);       // Add the body to the World
+    }
+    {   
+      // Top wall
+       const planeShape = new p2.Plane({
+        collisionGroup: COLLISION_GROUPS.GROUND,
+        collisionMask: COLLISION_MASKS.GROUND,
+      });
+      // Create a body for the ground
+      const planeBody = new p2.Body({
+        position: [0, 4],
+        angle: Math.PI,
+        mass: 0,  // Mass == 0 makes the body static
+      });
+      planeBody.role = "ground";
+      planeBody.addShape(planeShape); // Add the shape to the body
+      world.addBody(planeBody);       // Add the body to the World
+    }
+    // Right wall
+    {   
+       const planeShape = new p2.Plane({
+        collisionGroup: COLLISION_GROUPS.GROUND,
+        collisionMask: COLLISION_MASKS.GROUND,
+      });
+      // Create a body for the ground
+      const planeBody = new p2.Body({
+        position: [8, 0],
+        angle: Math.PI / 2,
+        mass: 0,  // Mass == 0 makes the body static
+      });
+      planeBody.role = "ground";
+      planeBody.addShape(planeShape); // Add the shape to the body
+      world.addBody(planeBody);       // Add the body to the World
+    }
+    // Left wall
+    {   
+       const planeShape = new p2.Plane({
+        collisionGroup: COLLISION_GROUPS.GROUND,
+        collisionMask: COLLISION_MASKS.GROUND,
+      });
+      // Create a body for the ground
+      const planeBody = new p2.Body({
+        position: [-8, 0],
+        angle: -Math.PI / 2,
+        mass: 0,  // Mass == 0 makes the body static
+      });
+      planeBody.role = "ground";
+      planeBody.addShape(planeShape); // Add the shape to the body
+      world.addBody(planeBody);       // Add the body to the World
+    }
 
     this.carEntity = new CarEntity();
     this.carEntity.on("fire", this.onFire, this);
@@ -303,6 +354,10 @@ class CarEntity extends util.CompositeEntity {
     this.hitGraphics.rotation = Math.random() * 2 * Math.PI;
     this.lastHitTime = Date.now();
   }
+
+  getCenterPosition() {
+    return this.chassisGraphicsContainer.position;
+  }
 }
 
 class HelicopterEntity extends util.CompositeEntity {
@@ -387,6 +442,11 @@ class HelicopterEntity extends util.CompositeEntity {
     this.hitGraphics.rotation = Math.random() * 2 * Math.PI;
     this.lastHitTime = Date.now();
   }
+
+  getCenterPosition() {
+    return this.container.position;
+  }
+
 }
 
 
