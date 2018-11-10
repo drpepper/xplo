@@ -6,25 +6,28 @@ import "../node_modules/url-search-params-polyfill/index.js";
 const APP_SIZE = new PIXI.Point(960, 540);
 
 const PHYSICS_ZOOM = 100;
-const INITIAL_ZOOM = 50;
+const INITIAL_ZOOM = 60;
 
 const COLLISION_GROUPS = {
   GROUND: Math.pow(2,0),
   PLAYER_1: Math.pow(2,1),
   PLAYER_2: Math.pow(2,2),
+  OBSTACLE: Math.pow(2,3),
 };
 
 const COLLISION_MASKS = {
-  GROUND: COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2,
-  PLAYER_1: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_2,
-  PLAYER_2: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1,
+  GROUND: COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2 | COLLISION_GROUPS.OBSTACLE,
+  PLAYER_1: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_2 | COLLISION_GROUPS.OBSTACLE,
+  PLAYER_2: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.OBSTACLE,
+  OBSTACLE: COLLISION_GROUPS.OBSTACLE | COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2,
 }
 
+const BLOCK_HEALTH = 5;
 
 const MOTOR_SPEED = 15;
 
-const HELICOPTER_SPEED = 5;
-const HELICOPTER_LIFT = 5;
+const HELICOPTER_SPEED = 10;
+const HELICOPTER_LIFT = 10;
 
 const HELICOPTER_BULLET_SPEED = 5;
 const CAR_BULLET_SPEED = 15;
@@ -49,6 +52,7 @@ const GRAPHICAL_ASSETS = [
   "helicopter.png",
   "helicopter_propeller.json",
   "hit.png",
+  "block.png",
 ];
 
 const MUSIC_ASSETS = [];
@@ -61,8 +65,6 @@ const FONTS = [];
 class BattleScene extends util.CompositeEntity {
   setup(config) {
     super.setup(config);
-
-    // this.shootWasPressed = false;
 
     world.on("beginContact", this.onBeginContact.bind(this));
 
@@ -80,7 +82,6 @@ class BattleScene extends util.CompositeEntity {
     this.physicsContainer.position.y = this.config.app.renderer.height/2;
     this.physicsContainer.scale.x =  INITIAL_ZOOM;  // zoom in
     this.physicsContainer.scale.y = -INITIAL_ZOOM; // Note: we flip the y axis to make "up" the physics "up"
-
 
     {   
       // Create ground shape (plane)
@@ -146,6 +147,12 @@ class BattleScene extends util.CompositeEntity {
       world.addBody(planeBody);       // Add the body to the World
     }
 
+    for(let i = 0; i < 5; i++) {
+      for(let j = 0; j < 5; j++) {
+        this.makeBlock([-2 + i, -4 + j]);
+      }
+    }
+
     this.carEntity = new CarEntity();
     this.carEntity.on("fire", this.onFire, this);
     const carGraphics = this.carEntity.setup(config);
@@ -186,13 +193,17 @@ class BattleScene extends util.CompositeEntity {
       this.helicopterEntity.onHit();
     } else if(otherBody.role === "bullet") {
       this.destroyBullet(otherBody);
+    } else if(otherBody.role === "block") {
+      otherBody.health--;
+      if(otherBody.health <= 0) {
+        this.destroyBody(otherBody);
+      }
     }
   }
 
-  destroyBullet(bulletBody) {
-    // Remove bullet and make explosion
+  destroyBody(body) {
     for(const childEntity of this.entities) {
-      if(childEntity.body === bulletBody) {
+      if(childEntity.body === body) {
         this.physicsContainer.removeChild(childEntity.graphics);
         this.removeEntity(childEntity);
 
@@ -200,15 +211,44 @@ class BattleScene extends util.CompositeEntity {
       }
     }
 
+    world.removeBody(body); 
+  }
+
+  makeExplosion(physicsPos) {
     const explosionSprite = makePhysicsAnimatedSprite("images/explosion.json");
-    explosionSprite.position.set(bulletBody.position[0], bulletBody.position[1]);
+    explosionSprite.position.set(physicsPos[0], physicsPos[1]);
     explosionSprite.rotation = Math.random() * 2 * Math.PI;
     explosionSprite.animationSpeed = 15/60;
     explosionSprite.loop = false;
     explosionSprite.onComplete = () => this.physicsContainer.removeChild(explosionSprite);
-    this.physicsContainer.addChild(explosionSprite);
 
-    world.removeBody(bulletBody); 
+    this.physicsContainer.addChild(explosionSprite);
+  }
+
+  destroyBullet(bulletBody) {
+    this.makeExplosion(bulletBody.position);
+    this.destroyBody(bulletBody);
+  }
+
+  makeBlock(physicsPos) {
+    const blockBody = new p2.Body({
+      position: physicsPos,
+      mass: 0,
+    });
+    blockBody.addShape(new p2.Box({
+      width: 1,
+      height: 1,
+      collisionGroup: COLLISION_GROUPS.OBSTACLE,
+      collisionMask: COLLISION_MASKS.OBSTACLE,
+    }));
+    blockBody.role = "block";
+    blockBody.health = BLOCK_HEALTH;
+    world.addBody(blockBody);
+
+    const blockGraphics = makePhysicsSprite("images/block.png");
+    this.physicsContainer.addChild(blockGraphics);
+
+    this.addEntity(new util.PhysicsEntity(blockBody, blockGraphics));
   }
 
   onFire(group, position, velocity) {
@@ -258,7 +298,10 @@ class CarEntity extends util.CompositeEntity {
     
     // Create wheels
     this.wheelBody1 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] - 0.5,0.5] });
+    this.wheelBody1.role = "car";
     this.wheelBody2 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] + 0.5,0.5] });
+    this.wheelBody2.role = "car";
+    
     const wheelShape1 = new p2.Circle({ 
       radius: 0.3,
       collisionGroup: COLLISION_GROUPS.PLAYER_1,
