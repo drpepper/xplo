@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>XPLO</title>
+  <link href="game.css" rel="stylesheet">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Google Analytics -->
+  <script>
+  window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+  ga('create', 'UA-115175051-1', 'auto');
+  ga('send', 'pageview');
+  </script>
+  <script async src='https://www.google-analytics.com/analytics.js'></script>
+  <!-- End Google Analytics -->
+</head>
+<body>
+  <div id="game-parent">
+    <canvas id="pixi-canvas"></canvas>
+  </div>
+
+  <div id="descriptive-content">
+    <h3>XPLO</h3>
+  </div>
+
+  <!-- build:js deps.js -->
+  <script src="node_modules/underscore/underscore.js"></script>
+  <script src="node_modules/pixi.js/dist/pixi.js"></script>
+  <script src="node_modules/pixi-filters/dist/pixi-filters.js"></script>
+  <script src="node_modules/howler/dist/howler.js"></script>
+  <script src="node_modules/fontfaceobserver/fontfaceobserver.js"></script>
+  <script src="node_modules/p2/build/p2.js"></script>
+  <!-- endbuild -->
+
+  <!-- build:js-bundle -->
+  <script type="module" src="src/game.js"></script>
+  <!-- endbuild -->
+</body>
+</html>
