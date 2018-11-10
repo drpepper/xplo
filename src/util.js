@@ -1354,7 +1354,11 @@ export class LoadingScene extends CompositeEntity {
 
         this.shouldUpdateProgress = false;
       }
-    } 
+    } else if(this.state === "ready") {
+      if(navigator.getGamepads().length > 0) {
+        this.state = "done";
+      }
+    }
   }
 
   updateProgress(fraction) {

@@ -19,7 +19,7 @@ const COLLISION_MASKS = {
 
 
 const MOTOR_SPEED = 10;
-const BULLET_SPEED = 10;
+const BULLET_SPEED = 7;
 
 
 // String of characters to look for in icon font
@@ -33,6 +33,9 @@ const GRAPHICAL_ASSETS = [
   "wheel.png",
   "box.png",
   "bullet.png",
+  "explosion.json",
+  "helicopter.png",
+  "helicopter_propeller.json",
 ];
 
 const MUSIC_ASSETS = [];
@@ -46,7 +49,7 @@ class BattleScene extends util.CompositeEntity {
   setup(config) {
     super.setup(config);
 
-    this.shootWasPressed = false;
+    // this.shootWasPressed = false;
 
     world.on("beginContact", this.onBeginContact.bind(this));
 
@@ -79,6 +82,79 @@ class BattleScene extends util.CompositeEntity {
     planeBody.role = "ground";
     planeBody.addShape(planeShape); // Add the shape to the body
     world.addBody(planeBody);       // Add the body to the World
+
+    this.carEntity = new CarEntity();
+    this.carEntity.on("fire", this.onFire, this);
+    const carGraphics = this.carEntity.setup(config);
+    this.physicsContainer.addChild(carGraphics);
+    this.addEntity(this.carEntity);
+
+    return this.container;
+  }
+
+  update(options) {
+    // Move physics bodies forward in time
+    world.step(1/60);
+
+    super.update(options);
+  }
+
+  onBeginContact(e) {
+    if(e.bodyA.role === "bullet") {
+      this.handleBulletContact(e.bodyA);
+    } else if(e.bodyB.role === "bullet") {
+      this.handleBulletContact(e.bodyB);
+    }
+  }
+
+  handleBulletContact(bulletBody) {
+    for(const childEntity of this.entities) {
+      if(childEntity.body === bulletBody) {
+        this.physicsContainer.removeChild(childEntity.graphics);
+        this.removeEntity(childEntity);
+
+        break;
+      }
+    }
+
+    const explosionSprite = makePhysicsAnimatedSprite("images/explosion.json");
+    explosionSprite.position.set(bulletBody.position[0], bulletBody.position[1]);
+    explosionSprite.animationSpeed = 15/60;
+    explosionSprite.loop = false;
+    explosionSprite.onComplete = () => this.physicsContainer.removeChild(explosionSprite);
+    this.physicsContainer.addChild(explosionSprite);
+
+    world.removeBody(bulletBody); 
+  }
+
+  onFire(group, position, velocity) {
+    const bulletBody = new p2.Body({
+      mass: 0.1, 
+      position,
+      velocity,
+    });
+    bulletBody.role = "bullet";
+    const bulletShape = new p2.Circle({ 
+      radius: 0.1,
+      collisionGroup: COLLISION_GROUPS[group],
+      collisionMask: COLLISION_MASKS[group],
+    });
+    bulletBody.addShape(bulletShape);
+    world.addBody(bulletBody);
+
+    const bulletGraphics = makePhysicsSprite("images/bullet.png");
+    this.physicsContainer.addChild(bulletGraphics);
+
+    this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
+  }
+}
+
+class CarEntity extends util.CompositeEntity {
+  setup(config) {
+    super.setup(config);
+
+    this.shootWasPressed = false;
+
 
 
     this.chassisBody = new p2.Body({
@@ -140,22 +216,23 @@ class BattleScene extends util.CompositeEntity {
 
 
     this.chassisGraphics = makePhysicsSprite("images/box.png");
-    this.physicsContainer.addChild(this.chassisGraphics);
+    this.container.addChild(this.chassisGraphics);
     this.addEntity(new util.PhysicsEntity(this.chassisBody, this.chassisGraphics));
 
     this.backWheelGraphics = makePhysicsSprite("images/wheel.png");
-    this.physicsContainer.addChild(this.backWheelGraphics);
+    this.container.addChild(this.backWheelGraphics);
     this.addEntity(new util.PhysicsEntity(this.wheelBody1, this.backWheelGraphics));
 
     this.frontWheelGraphics = makePhysicsSprite("images/wheel.png");
-    this.physicsContainer.addChild(this.frontWheelGraphics);
+    this.container.addChild(this.frontWheelGraphics);
     this.addEntity(new util.PhysicsEntity(this.wheelBody2, this.frontWheelGraphics));
-
 
     return this.container;
   }
 
   update(options) {
+    super.update(options);
+
     const speed = navigator.getGamepads()[0].axes[0] * MOTOR_SPEED;
     this.revoluteBack.setMotorSpeed(speed);
     this.revoluteFront.setMotorSpeed(speed);
@@ -169,58 +246,33 @@ class BattleScene extends util.CompositeEntity {
           -navigator.getGamepads()[0].axes[3] * BULLET_SPEED,
         ];
 
-        const bulletBody = new p2.Body({
-          mass: 0.1, 
-          position: this.chassisBody.position,
-          velocity: bulletVelocity,
-        });
-        bulletBody.role = "bullet";
-        const bulletShape = new p2.Circle({ 
-          radius: 0.1,
-          collisionGroup: COLLISION_GROUPS.PLAYER_1,
-          collisionMask: COLLISION_MASKS.PLAYER_1,
-        });
-        bulletBody.addShape(bulletShape);
-        world.addBody(bulletBody);
+        this.emit("fire", "PLAYER_1", this.chassisBody.position, bulletVelocity);
 
-        const bulletGraphics = makePhysicsSprite("images/bullet.png");
-        this.physicsContainer.addChild(bulletGraphics);
+        // const bulletBody = new p2.Body({
+        //   mass: 0.1, 
+        //   position: this.chassisBody.position,
+        //   velocity: bulletVelocity,
+        // });
+        // bulletBody.role = "bullet";
+        // const bulletShape = new p2.Circle({ 
+        //   radius: 0.1,
+        //   collisionGroup: COLLISION_GROUPS.PLAYER_1,
+        //   collisionMask: COLLISION_MASKS.PLAYER_1,
+        // });
+        // bulletBody.addShape(bulletShape);
+        // world.addBody(bulletBody);
 
-        this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
+        // const bulletGraphics = makePhysicsSprite("images/bullet.png");
+        // this.physicsContainer.addChild(bulletGraphics);
+
+        // this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
       }
     } else if(this.shootWasPressed) {
       this.shootWasPressed = false;
     }
-
-     // Move physics bodies forward in time
-    world.step(1/60);
-
-    super.update(options);
-  }
-
-  onBeginContact(e) {
-    // console.log(e.bodyA.id, e.bodyB.id);
-
-    if(e.bodyA.role === "bullet") {
-      this.handleBulletContact(e.bodyA);
-    } else if(e.bodyB.role === "bullet") {
-      this.handleBulletContact(e.bodyB);
-    }
-  }
-
-  handleBulletContact(bulletBody) {
-    for(const childEntity of this.entities) {
-      if(childEntity.body === bulletBody) {
-        this.physicsContainer.removeChild(childEntity.graphics);
-        this.removeEntity(childEntity);
-
-        break;
-      }
-    }
-
-    world.removeBody(bulletBody); 
   }
 }
+
 
 
 // *** SCENE MANAGEMENT ***
@@ -259,6 +311,14 @@ function makePhysicsSprite(name) { 
   const sprite = new PIXI.Sprite(app.loader.resources[name].texture);
   sprite.anchor.set(0.5);
   sprite.scale.set(1/PHYSICS_ZOOM);
+  return sprite;
+}
+
+function makePhysicsAnimatedSprite(name) { 
+  const sprite = new PIXI.extras.AnimatedSprite(getFramesForSpriteSheet(name));
+  sprite.anchor.set(0.5);
+  sprite.scale.set(1/PHYSICS_ZOOM);
+  sprite.play();
   return sprite;
 }
 
