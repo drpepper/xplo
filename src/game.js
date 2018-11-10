@@ -20,13 +20,16 @@ const COLLISION_MASKS = {
 }
 
 
-const MOTOR_SPEED = 20;
+const MOTOR_SPEED = 15;
+
+const HELICOPTER_SPEED = 5;
+const HELICOPTER_LIFT = 5;
 
 const HELICOPTER_BULLET_SPEED = 5;
 const CAR_BULLET_SPEED = 15;
 
-const HELICOPTER_SPEED = 5;
-const HELICOPTER_LIFT = 5;
+const HELICOPTER_FIRE_DELAY = 400;
+const CAR_FIRE_DELAY = 200;
 
 const HIT_FLASH_TIME = 100;
 
@@ -183,7 +186,7 @@ class CarEntity extends util.CompositeEntity {
   setup(config) {
     super.setup(config);
 
-    this.shootWasPressed = false;
+    this.lastFireTime = 0;
     this.lastHitTime = 0;
 
 
@@ -195,7 +198,7 @@ class CarEntity extends util.CompositeEntity {
     this.chassisBody.role = "car";
     this.chassisShape = new p2.Box({ 
       width: 1, 
-      height: 0.5,
+      height: 0.4,
       collisionGroup: COLLISION_GROUPS.PLAYER_1,
       collisionMask: COLLISION_MASKS.PLAYER_1,
     });
@@ -203,15 +206,15 @@ class CarEntity extends util.CompositeEntity {
     world.addBody(this.chassisBody);
     
     // Create wheels
-    this.wheelBody1 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] - 0.5,0.7] });
-    this.wheelBody2 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] + 0.5,0.7] });
+    this.wheelBody1 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] - 0.5,0.5] });
+    this.wheelBody2 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] + 0.5,0.5] });
     const wheelShape1 = new p2.Circle({ 
-      radius: 0.2,
+      radius: 0.3,
       collisionGroup: COLLISION_GROUPS.PLAYER_1,
       collisionMask: COLLISION_MASKS.PLAYER_1,
     });
     const wheelShape2 = new p2.Circle({ 
-      radius: 0.2,
+      radius: 0.3,
       collisionGroup: COLLISION_GROUPS.PLAYER_1,
       collisionMask: COLLISION_MASKS.PLAYER_1,
      });
@@ -223,14 +226,14 @@ class CarEntity extends util.CompositeEntity {
     // Constrain wheels to chassis with revolute constraints.
     // Revolutes lets the connected bodies rotate around a shared point.
     this.revoluteBack = new p2.RevoluteConstraint(this.chassisBody, this.wheelBody1, {
-        localPivotA: [-0.5, -0.3],   // Where to hinge first wheel on the chassis
+        localPivotA: [-0.5, -0],   // Where to hinge first wheel on the chassis
         localPivotB: [0, 0],
         collideConnected: false
     });
     world.addConstraint(this.revoluteBack);
 
     this.revoluteFront = new p2.RevoluteConstraint(this.chassisBody, this.wheelBody2, {
-        localPivotA: [0.5, -0.3], // Where to hinge second wheel on the chassis
+        localPivotA: [0.5, -0], // Where to hinge second wheel on the chassis
         localPivotB: [0, 0],      // Where the hinge is in the wheel (center)
         collideConnected: false
     });
@@ -276,8 +279,8 @@ class CarEntity extends util.CompositeEntity {
     this.revoluteFront.setMotorSpeed(speed);
 
     if(navigator.getGamepads()[0].buttons[7].pressed) {
-      if(!this.shootWasPressed) {
-        this.shootWasPressed = true;
+      if(Date.now() - this.lastFireTime > CAR_FIRE_DELAY) {
+        this.lastFireTime = Date.now();
 
         const bulletVelocity = [
           navigator.getGamepads()[0].axes[2] * CAR_BULLET_SPEED,
@@ -306,7 +309,7 @@ class HelicopterEntity extends util.CompositeEntity {
   setup(config) {
     super.setup(config);
 
-    this.shootWasPressed = false;
+    this.lastFireTime = 0;
     this.lastHitTime = 0;
 
     this.chassisBody = new p2.Body({
@@ -360,8 +363,8 @@ class HelicopterEntity extends util.CompositeEntity {
     }
 
     if(navigator.getGamepads()[1].buttons[7].pressed) {
-      if(!this.shootWasPressed) {
-        this.shootWasPressed = true;
+      if(Date.now() - this.lastFireTime > HELICOPTER_FIRE_DELAY) {
+        this.lastFireTime = Date.now();
 
         const bulletVelocity = [
           navigator.getGamepads()[1].axes[2] * HELICOPTER_BULLET_SPEED,
