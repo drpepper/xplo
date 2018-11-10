@@ -10,17 +10,25 @@ const PHYSICS_ZOOM = 100;
 const COLLISION_GROUPS = {
   GROUND: Math.pow(2,0),
   PLAYER_1: Math.pow(2,1),
+  PLAYER_2: Math.pow(2,2),
 };
 
 const COLLISION_MASKS = {
-  GROUND: COLLISION_GROUPS.PLAYER_1,
-  PLAYER_1: COLLISION_GROUPS.GROUND,
+  GROUND: COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2,
+  PLAYER_1: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_2,
+  PLAYER_2: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1,
 }
 
 
-const MOTOR_SPEED = 10;
-const BULLET_SPEED = 7;
+const MOTOR_SPEED = 20;
 
+const HELICOPTER_BULLET_SPEED = 5;
+const CAR_BULLET_SPEED = 15;
+
+const HELICOPTER_SPEED = 5;
+const HELICOPTER_LIFT = 5;
+
+const HIT_FLASH_TIME = 100;
 
 // String of characters to look for in icon font
 const FONT_OBSERVER_CHARS = "asdf";
@@ -36,6 +44,7 @@ const GRAPHICAL_ASSETS = [
   "explosion.json",
   "helicopter.png",
   "helicopter_propeller.json",
+  "hit.png",
 ];
 
 const MUSIC_ASSETS = [];
@@ -89,6 +98,12 @@ class BattleScene extends util.CompositeEntity {
     this.physicsContainer.addChild(carGraphics);
     this.addEntity(this.carEntity);
 
+    this.helicopterEntity = new HelicopterEntity();
+    this.helicopterEntity.on("fire", this.onFire, this);
+    const helicopterGraphics = this.helicopterEntity.setup(config);
+    this.physicsContainer.addChild(helicopterGraphics);
+    this.addEntity(this.helicopterEntity);
+
     return this.container;
   }
 
@@ -101,13 +116,27 @@ class BattleScene extends util.CompositeEntity {
 
   onBeginContact(e) {
     if(e.bodyA.role === "bullet") {
-      this.handleBulletContact(e.bodyA);
+      this.handleBulletContact(e.bodyA, e.bodyB);
     } else if(e.bodyB.role === "bullet") {
-      this.handleBulletContact(e.bodyB);
+      this.handleBulletContact(e.bodyB, e.bodyA);
     }
   }
 
-  handleBulletContact(bulletBody) {
+  handleBulletContact(bulletBody, otherBody) {
+    this.destroyBullet(bulletBody);
+
+    // Handle other body
+    if(otherBody.role === "car") {
+      this.carEntity.onHit();
+    } else if(otherBody.role === "helicopter") {
+      this.helicopterEntity.onHit();
+    } else if(otherBody.role === "bullet") {
+      this.destroyBullet(otherBody);
+    }
+  }
+
+  destroyBullet(bulletBody) {
+    // Remove bullet and make explosion
     for(const childEntity of this.entities) {
       if(childEntity.body === bulletBody) {
         this.physicsContainer.removeChild(childEntity.graphics);
@@ -119,6 +148,7 @@ class BattleScene extends util.CompositeEntity {
 
     const explosionSprite = makePhysicsAnimatedSprite("images/explosion.json");
     explosionSprite.position.set(bulletBody.position[0], bulletBody.position[1]);
+    explosionSprite.rotation = Math.random() * 2 * Math.PI;
     explosionSprite.animationSpeed = 15/60;
     explosionSprite.loop = false;
     explosionSprite.onComplete = () => this.physicsContainer.removeChild(explosionSprite);
@@ -154,7 +184,7 @@ class CarEntity extends util.CompositeEntity {
     super.setup(config);
 
     this.shootWasPressed = false;
-
+    this.lastHitTime = 0;
 
 
     this.chassisBody = new p2.Body({
@@ -162,6 +192,7 @@ class CarEntity extends util.CompositeEntity {
         position: [-4,1], // Initial position,
         angle: Math.PI / 4,
     });
+    this.chassisBody.role = "car";
     this.chassisShape = new p2.Box({ 
       width: 1, 
       height: 0.5,
@@ -214,10 +245,17 @@ class CarEntity extends util.CompositeEntity {
     this.revoluteFront.setMotorSpeed(0); // Rotational speed in radians per second
 
 
+    this.chassisGraphicsContainer = new PIXI.Container();
+    this.container.addChild(this.chassisGraphicsContainer);
+
+    this.hitGraphics = makePhysicsSprite("images/hit.png");
+    this.hitGraphics.visible = false;
+    this.chassisGraphicsContainer.addChild(this.hitGraphics);
 
     this.chassisGraphics = makePhysicsSprite("images/box.png");
-    this.container.addChild(this.chassisGraphics);
-    this.addEntity(new util.PhysicsEntity(this.chassisBody, this.chassisGraphics));
+    this.chassisGraphicsContainer.addChild(this.chassisGraphics);
+    this.addEntity(new util.PhysicsEntity(this.chassisBody, this.chassisGraphicsContainer));
+
 
     this.backWheelGraphics = makePhysicsSprite("images/wheel.png");
     this.container.addChild(this.backWheelGraphics);
@@ -242,37 +280,111 @@ class CarEntity extends util.CompositeEntity {
         this.shootWasPressed = true;
 
         const bulletVelocity = [
-          navigator.getGamepads()[0].axes[2] * BULLET_SPEED,
-          -navigator.getGamepads()[0].axes[3] * BULLET_SPEED,
+          navigator.getGamepads()[0].axes[2] * CAR_BULLET_SPEED,
+          -navigator.getGamepads()[0].axes[3] * CAR_BULLET_SPEED,
         ];
 
         this.emit("fire", "PLAYER_1", this.chassisBody.position, bulletVelocity);
-
-        // const bulletBody = new p2.Body({
-        //   mass: 0.1, 
-        //   position: this.chassisBody.position,
-        //   velocity: bulletVelocity,
-        // });
-        // bulletBody.role = "bullet";
-        // const bulletShape = new p2.Circle({ 
-        //   radius: 0.1,
-        //   collisionGroup: COLLISION_GROUPS.PLAYER_1,
-        //   collisionMask: COLLISION_MASKS.PLAYER_1,
-        // });
-        // bulletBody.addShape(bulletShape);
-        // world.addBody(bulletBody);
-
-        // const bulletGraphics = makePhysicsSprite("images/bullet.png");
-        // this.physicsContainer.addChild(bulletGraphics);
-
-        // this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
       }
     } else if(this.shootWasPressed) {
       this.shootWasPressed = false;
     }
+
+    if(this.hitGraphics.visible && Date.now() - this.lastHitTime > HIT_FLASH_TIME) {
+      this.hitGraphics.visible = false;
+    }
+  }
+
+  onHit() {
+    this.hitGraphics.visible = true;
+    this.hitGraphics.rotation = Math.random() * 2 * Math.PI;
+    this.lastHitTime = Date.now();
   }
 }
 
+class HelicopterEntity extends util.CompositeEntity {
+  setup(config) {
+    super.setup(config);
+
+    this.shootWasPressed = false;
+    this.lastHitTime = 0;
+
+    this.chassisBody = new p2.Body({
+      mass: 1,        // Setting mass > 0 makes it dynamic
+      position: [4,1], // Initial position,
+    });
+    this.chassisBody.role = "helicopter";
+    this.chassisShape = new p2.Box({ 
+      width: 1, 
+      height: 0.5,
+      collisionGroup: COLLISION_GROUPS.PLAYER_2,
+      collisionMask: COLLISION_MASKS.PLAYER_2,
+    });
+    this.chassisBody.addShape(this.chassisShape);
+    world.addBody(this.chassisBody);
+
+    
+    this.hitGraphics = makePhysicsSprite("images/hit.png");
+    this.hitGraphics.visible = false;
+    this.container.addChild(this.hitGraphics);
+
+    this.chassisGraphics = makePhysicsSprite("images/helicopter.png");
+    this.chassisGraphics.scale.x *= -1;
+    this.container.addChild(this.chassisGraphics);
+    this.addEntity(new util.PhysicsEntity(this.chassisBody, this.container));
+
+    this.propellerGraphics = makePhysicsAnimatedSprite("images/helicopter_propeller.json");
+    this.propellerGraphics.animationSpeed = 10/60;
+    this.propellerGraphics.position.y = 0.4;
+    this.container.addChild(this.propellerGraphics);
+
+    return this.container;
+  }
+
+  update(options) {
+    super.update(options);
+
+    const speed = navigator.getGamepads()[1].axes[0] * HELICOPTER_SPEED;
+    const lift = -navigator.getGamepads()[1].axes[1] * HELICOPTER_LIFT;
+    this.chassisBody.velocity = [speed, lift]; 
+
+    // Vertical
+
+    // Tilt
+    if(navigator.getGamepads()[1].axes[0] > 0.25) {
+      this.chassisBody.angle = -Math.PI / 8;
+    } else if(navigator.getGamepads()[1].axes[0] < -0.25) {
+      this.chassisBody.angle = Math.PI / 8;
+    } else {
+      this.chassisBody.angle = 0;
+    }
+
+    if(navigator.getGamepads()[1].buttons[7].pressed) {
+      if(!this.shootWasPressed) {
+        this.shootWasPressed = true;
+
+        const bulletVelocity = [
+          navigator.getGamepads()[1].axes[2] * HELICOPTER_BULLET_SPEED,
+          -navigator.getGamepads()[1].axes[3] * HELICOPTER_BULLET_SPEED,
+        ];
+
+        this.emit("fire", "PLAYER_2", this.chassisBody.position, bulletVelocity);
+      }
+    } else if(this.shootWasPressed) {
+      this.shootWasPressed = false;
+    }
+
+    if(this.hitGraphics.visible && Date.now() - this.lastHitTime > HIT_FLASH_TIME) {
+      this.hitGraphics.visible = false;
+    }
+  }
+
+  onHit() {
+    this.hitGraphics.visible = true;
+    this.hitGraphics.rotation = Math.random() * 2 * Math.PI;
+    this.lastHitTime = Date.now();
+  }
+}
 
 
 // *** SCENE MANAGEMENT ***
@@ -310,14 +422,14 @@ function makeSprite(name) { 
 function makePhysicsSprite(name) { 
   const sprite = new PIXI.Sprite(app.loader.resources[name].texture);
   sprite.anchor.set(0.5);
-  sprite.scale.set(1/PHYSICS_ZOOM);
+  sprite.scale.set(1/PHYSICS_ZOOM, -1/PHYSICS_ZOOM);
   return sprite;
 }
 
 function makePhysicsAnimatedSprite(name) { 
   const sprite = new PIXI.extras.AnimatedSprite(getFramesForSpriteSheet(name));
   sprite.anchor.set(0.5);
-  sprite.scale.set(1/PHYSICS_ZOOM);
+  sprite.scale.set(1/PHYSICS_ZOOM, -1/PHYSICS_ZOOM);
   sprite.play();
   return sprite;
 }

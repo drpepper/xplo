@@ -1,0 +1,31 @@
+{"frames": {
+
+"helicopter_propeller_0.png":
+{
+	"frame": {"x":1,"y":38,"w":81,"h":36},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":81,"h":36},
+	"sourceSize": {"w":81,"h":36}
+},
+"helicopter_propeller_1.png":
+{
+	"frame": {"x":1,"y":1,"w":81,"h":35},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":81,"h":35},
+	"sourceSize": {"w":81,"h":35}
+}},
+"animations": {
+	"helicopter_propeller": ["helicopter_propeller_0.png","helicopter_propeller_1.png"]
+},
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "helicopter_propeller.png",
+	"format": "RGBA8888",
+	"size": {"w":83,"h":75},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:2dbbf847e9a48522de46b616182e5edf:fb81b0a3438a39a418c0017c08e787ca:d2281f8c063d0f9bd2ba2589328be5a4$"
+}
+}
