@@ -22,7 +22,9 @@ const COLLISION_MASKS = {
   OBSTACLE: COLLISION_GROUPS.OBSTACLE | COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2,
 }
 
-const BATTLE_TIME = 60000;
+const READY_TIME = 3000;
+const BATTLE_TIME = 3000;
+const WINNING_TIME = 3000;
 
 const BLOCK_HEALTH = 5;
 
@@ -58,6 +60,9 @@ const GRAPHICAL_ASSETS = [
   "helicopter_propeller.json",
   "hit.png",
   "block.png",
+  "ready.png",
+  "trophy.png",
+  "tie.png",
 ];
 
 const MUSIC_ASSETS = [];
@@ -65,6 +70,80 @@ const MUSIC_ASSETS = [];
 const VIDEO_ASSETS = [];
 
 const FONTS = [];
+
+
+class ReadyScene extends util.CompositeEntity {
+  setup(config) {
+    super.setup(config);
+
+    const bg = new PIXI.Graphics();
+    bg.beginFill(0xffffff);
+    bg.drawRect(0, 0, this.config.app.renderer.width, this.config.app.renderer.height);
+    this.container.addChild(bg);
+
+    const readyGraphics = makeSprite("images/ready.png");
+    readyGraphics.anchor.set(0.5);
+    readyGraphics.position.set(this.config.app.renderer.width / 2, this.config.app.renderer.height / 2);
+    this.container.addChild(readyGraphics);
+
+    return this.container;
+  }
+
+  requestedTransition(options) {
+    super.requestedTransition(options);
+
+    return options.timeSinceStart > READY_TIME;
+  }
+}
+
+
+class WinningScene extends util.CompositeEntity {
+  constructor(result, winner) {
+    super();
+    
+    this.result = result;
+    this.winner = winner;
+  }
+
+  setup(config) {
+    super.setup(config);
+
+    const bg = new PIXI.Graphics();
+    bg.beginFill(0xffffff);
+    bg.drawRect(0, 0, this.config.app.renderer.width, this.config.app.renderer.height);
+    this.container.addChild(bg);
+
+    if(this.result === "win") {
+      const trophyGraphics = makeSprite("images/trophy.png");
+      trophyGraphics.anchor.set(0.5);
+      trophyGraphics.position.set(this.config.app.renderer.width / 2, this.config.app.renderer.height / 2);
+      this.container.addChild(trophyGraphics);
+
+      const winnerName = new PIXI.Text(`Player ${this.winner + 1}`, {
+        fontFamily : 'Courier New', 
+        fontSize: 48, 
+        fill: 0x000000, 
+        align: 'center',
+      });
+      winnerName.anchor.set(0.5);
+      winnerName.position.set(this.config.app.renderer.width / 2, 500);
+      this.container.addChild(winnerName);
+    } else {
+      const tieGraphics = makeSprite("images/tie.png");
+      tieGraphics.anchor.set(0.5);
+      tieGraphics.position.set(this.config.app.renderer.width / 2, this.config.app.renderer.height / 2);
+      this.container.addChild(tieGraphics);
+    }
+
+    return this.container;
+  }
+
+  requestedTransition(options) {
+    super.requestedTransition(options);
+
+    return options.timeSinceStart > WINNING_TIME;
+  }
+}
 
 
 class BattleScene extends util.CompositeEntity {
@@ -226,7 +305,24 @@ class BattleScene extends util.CompositeEntity {
   }
 
   requestedTransition(options) {
-    return options.timeSinceStart > BATTLE_TIME; 
+    if(options.timeSinceStart <= BATTLE_TIME) return null;
+
+    if(this.scores[0] == this.scores[1]) {
+      return {
+        name: "done",
+        params: {
+          result: "tie",
+        },
+      };
+    } else {
+      return { 
+        name: "done",
+        params: {
+          result: "win", 
+          winner: this.scores[0] > this.scores[1] ? 0 : 1,
+        },
+      };
+    }
   }
 
   teardown() {
@@ -575,7 +671,9 @@ class HelicopterEntity extends util.CompositeEntity {
 function makeScene(sceneName, params = {}) {
   switch(sceneName) {
     case "load": return loadingScene;
+    case "ready": return new ReadyScene();
     case "battle": return new BattleScene();
+    case "winning": return new WinningScene(params.result, params.winner);
 
     default: throw new Error("no scene with name " + sceneName);
   }
@@ -587,7 +685,13 @@ let loadingScene = new util.LoadingScene(preloader);
 // This function can have side effects
 function provideNextScene(currentSceneName, currentSceneParams, requestedTransition) {
   switch(currentSceneName) {
-    case "load": return { name: "battle" };
+    case "load": return { name: "ready" };
+    case "ready": return { name: "battle" };
+    case "battle": return { 
+      name: "winning", 
+      params: requestedTransition.params,
+    };
+    case "winning": return { name: "ready" };
 
     default:
       console.error("No transition from", currentSceneName, "with transition", requestedTransition);
