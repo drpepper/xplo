@@ -32,11 +32,10 @@ const MOTOR_SPEED = 15;
 const CAR_JUMP_DELAY = 2000;
 const CAR_JUMP_SPEED = 22;
 
-
 const HELICOPTER_SPEED = 10;
 const HELICOPTER_LIFT = 10;
 
-const HELICOPTER_BULLET_SPEED = 5;
+const HELICOPTER_BULLET_SPEED = 10;
 const CAR_BULLET_SPEED = 15;
 
 const FIRE_DELAYS = {
@@ -69,6 +68,20 @@ const GRAPHICAL_ASSETS = [
 ];
 
 const MUSIC_ASSETS = [];
+
+const FX_ASSETS = [
+  "explosion_0.mp3",
+  "explosion_1.mp3",
+  "explosion_2.mp3",
+  "explosion_3.mp3",
+  "fire_0.mp3",
+  "fire_1.mp3",
+  "fire_2.mp3",
+  "shoot_0.mp3",
+  "shoot_1.mp3",
+  "shoot_2.mp3",
+  "shoot_3.mp3",
+];
 
 const VIDEO_ASSETS = [];
 
@@ -356,6 +369,9 @@ class BattleScene extends util.CompositeEntity {
     // Handle other body
     if(otherBody.role === "player") {
       this.players[otherBody.playerNumber].onHit();
+
+      const explosionIndex = _.sample(_.range(4));
+      fxAudio[`explosion_${explosionIndex}.mp3`].play();
     } else if(otherBody.role === "bullet") {
       this.destroyBullet(otherBody);
     } else if(otherBody.role === "block") {
@@ -364,6 +380,9 @@ class BattleScene extends util.CompositeEntity {
       if(otherBody.health <= 0) {
         this.destroyBody(otherBody);
       }
+
+      const fireIndex = _.sample(_.range(3));
+      fxAudio[`fire_${fireIndex}.mp3`].play();
     }
 
     // Handle scores
@@ -443,6 +462,9 @@ class BattleScene extends util.CompositeEntity {
     this.physicsContainer.addChild(bulletGraphics);
 
     this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
+
+    const shootIndex = _.sample(_.range(4));
+    fxAudio[`shoot_${shootIndex}.mp3`].play();
   }
 
   _chooseVehicleClass() {
@@ -802,6 +824,8 @@ let narrator;
 let musicAudio;
 let jukebox;
 
+let fxAudio;
+
 // The format is key: { text: string, [file: string], [start: int], [end: int], [skipFile: bool] }
 // If start is omitted, entire file will play 
 // If file is omitted, the file name will be the key name followed by a underscore and the language code, like "intro_fr.mp3" 
@@ -991,7 +1015,18 @@ function loadC() {
   musicAudio = util.makeMusicHowls(MUSIC_ASSETS);
   const musicLoadPromises = _.map(musicAudio, util.makeHowlerLoadPromise);
 
-  const audioPromises = _.flatten([narrationLoadPromises, musicLoadPromises], true);
+  // Create map of file names to Howl objects
+  fxAudio = {};
+  for(let file of FX_ASSETS) {
+    fxAudio[file] = new Howl({
+      src: `audio/fx/${file}`,
+      loop: false,
+    });
+  }
+
+  const fxLoadPromises = _.map(fxAudio, util.makeHowlerLoadPromise);
+
+  const audioPromises = _.flatten([narrationLoadPromises, musicLoadPromises, fxLoadPromises], true);
   _.each(audioPromises, p => p.then(() => {
     audioLoaderProgress += 1/audioPromises.length;
     updateLoadingProgress();
