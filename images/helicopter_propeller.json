@@ -2,19 +2,19 @@
 
 "helicopter_propeller_0.png":
 {
-	"frame": {"x":1,"y":38,"w":81,"h":36},
+	"frame": {"x":136,"y":1,"w":132,"h":58},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":81,"h":36},
-	"sourceSize": {"w":81,"h":36}
+	"spriteSourceSize": {"x":0,"y":0,"w":132,"h":58},
+	"sourceSize": {"w":132,"h":58}
 },
 "helicopter_propeller_1.png":
 {
-	"frame": {"x":1,"y":1,"w":81,"h":35},
+	"frame": {"x":1,"y":1,"w":133,"h":58},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":81,"h":35},
-	"sourceSize": {"w":81,"h":35}
+	"spriteSourceSize": {"x":0,"y":0,"w":133,"h":58},
+	"sourceSize": {"w":133,"h":58}
 }},
 "animations": {
 	"helicopter_propeller": ["helicopter_propeller_0.png","helicopter_propeller_1.png"]
@@ -24,8 +24,8 @@
 	"version": "1.0",
 	"image": "helicopter_propeller.png",
 	"format": "RGBA8888",
-	"size": {"w":83,"h":75},
+	"size": {"w":269,"h":60},
 	"scale": "1",
-	"smartupdate": "$TexturePacker:SmartUpdate:2dbbf847e9a48522de46b616182e5edf:fb81b0a3438a39a418c0017c08e787ca:d2281f8c063d0f9bd2ba2589328be5a4$"
+	"smartupdate": "$TexturePacker:SmartUpdate:bd32fcee31bdcb5b47cd4810e8334d8b:d2d8482e9a9bdc1fd2479d133e86a90f:d2281f8c063d0f9bd2ba2589328be5a4$"
 }
 }

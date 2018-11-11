@@ -32,7 +32,7 @@ const HELICOPTER_LIFT = 10;
 const HELICOPTER_BULLET_SPEED = 5;
 const CAR_BULLET_SPEED = 15;
 
-const HELICOPTER_FIRE_DELAY = 400;
+const HELICOPTER_FIRE_DELAY = 200;
 const CAR_FIRE_DELAY = 200;
 
 const HIT_FLASH_TIME = 100;
@@ -148,8 +148,8 @@ class BattleScene extends util.CompositeEntity {
     }
 
     for(let i = 0; i < 5; i++) {
-      for(let j = 0; j < 5; j++) {
-        this.makeBlock([-2 + i, -4 + j]);
+      for(let j = 0; j < 2; j++) {
+        this.makeBlock([-2 + i * 0.5, -4 + j * 0.5]);
       }
     }
 
@@ -236,8 +236,8 @@ class BattleScene extends util.CompositeEntity {
       mass: 0,
     });
     blockBody.addShape(new p2.Box({
-      width: 1,
-      height: 1,
+      width: 0.5,
+      height: 0.5,
       collisionGroup: COLLISION_GROUPS.OBSTACLE,
       collisionMask: COLLISION_MASKS.OBSTACLE,
     }));
@@ -288,7 +288,7 @@ class CarEntity extends util.CompositeEntity {
     });
     this.chassisBody.role = "car";
     this.chassisShape = new p2.Box({ 
-      width: 1, 
+      width: 2, 
       height: 0.4,
       collisionGroup: COLLISION_GROUPS.PLAYER_1,
       collisionMask: COLLISION_MASKS.PLAYER_1,
@@ -303,12 +303,12 @@ class CarEntity extends util.CompositeEntity {
     this.wheelBody2.role = "car";
     
     const wheelShape1 = new p2.Circle({ 
-      radius: 0.3,
+      radius: 0.4,
       collisionGroup: COLLISION_GROUPS.PLAYER_1,
       collisionMask: COLLISION_MASKS.PLAYER_1,
     });
     const wheelShape2 = new p2.Circle({ 
-      radius: 0.3,
+      radius: 0.4,
       collisionGroup: COLLISION_GROUPS.PLAYER_1,
       collisionMask: COLLISION_MASKS.PLAYER_1,
      });
@@ -320,14 +320,14 @@ class CarEntity extends util.CompositeEntity {
     // Constrain wheels to chassis with revolute constraints.
     // Revolutes lets the connected bodies rotate around a shared point.
     this.revoluteBack = new p2.RevoluteConstraint(this.chassisBody, this.wheelBody1, {
-        localPivotA: [-0.5, -0],   // Where to hinge first wheel on the chassis
+        localPivotA: [-1, -0],   // Where to hinge first wheel on the chassis
         localPivotB: [0, 0],
         collideConnected: false
     });
     world.addConstraint(this.revoluteBack);
 
     this.revoluteFront = new p2.RevoluteConstraint(this.chassisBody, this.wheelBody2, {
-        localPivotA: [0.5, -0], // Where to hinge second wheel on the chassis
+        localPivotA: [1, -0], // Where to hinge second wheel on the chassis
         localPivotB: [0, 0],      // Where the hinge is in the wheel (center)
         collideConnected: false
     });
@@ -416,8 +416,8 @@ class HelicopterEntity extends util.CompositeEntity {
     });
     this.chassisBody.role = "helicopter";
     this.chassisShape = new p2.Box({ 
-      width: 1, 
-      height: 0.5,
+      width: 1.5, 
+      height: 0.85,
       collisionGroup: COLLISION_GROUPS.PLAYER_2,
       collisionMask: COLLISION_MASKS.PLAYER_2,
     });
@@ -436,7 +436,7 @@ class HelicopterEntity extends util.CompositeEntity {
 
     this.propellerGraphics = makePhysicsAnimatedSprite("images/helicopter_propeller.json");
     this.propellerGraphics.animationSpeed = 10/60;
-    this.propellerGraphics.position.y = 0.4;
+    this.propellerGraphics.position.y = 0.6;
     this.container.addChild(this.propellerGraphics);
 
     return this.container;
