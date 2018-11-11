@@ -10,20 +10,20 @@ const INITIAL_ZOOM = 60;
 
 const COLLISION_GROUPS = {
   GROUND: Math.pow(2,0),
-  PLAYER_1: Math.pow(2,1),
-  PLAYER_2: Math.pow(2,2),
+  PLAYER_0: Math.pow(2,1),
+  PLAYER_1: Math.pow(2,2),
   OBSTACLE: Math.pow(2,3),
 };
 
 const COLLISION_MASKS = {
-  GROUND: COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2 | COLLISION_GROUPS.OBSTACLE,
-  PLAYER_1: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_2 | COLLISION_GROUPS.OBSTACLE,
-  PLAYER_2: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.OBSTACLE,
-  OBSTACLE: COLLISION_GROUPS.OBSTACLE | COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2,
+  GROUND: COLLISION_GROUPS.PLAYER_0 | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.OBSTACLE,
+  PLAYER_0: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.OBSTACLE,
+  PLAYER_1: COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_0 | COLLISION_GROUPS.OBSTACLE,
+  OBSTACLE: COLLISION_GROUPS.OBSTACLE | COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_0 | COLLISION_GROUPS.PLAYER_1,
 }
 
 const READY_TIME = 3000;
-const BATTLE_TIME = 3000;
+const BATTLE_TIME = 30000;
 const WINNING_TIME = 3000;
 
 const BLOCK_HEALTH = 5;
@@ -100,7 +100,7 @@ class ReadyScene extends util.CompositeEntity {
 class WinningScene extends util.CompositeEntity {
   constructor(result, winner) {
     super();
-    
+
     this.result = result;
     this.winner = winner;
   }
@@ -276,17 +276,27 @@ class BattleScene extends util.CompositeEntity {
       }
     }
 
-    this.carEntity = new CarEntity();
-    this.carEntity.on("fire", this.onFire, this);
-    const carGraphics = this.carEntity.setup(config);
-    this.physicsContainer.addChild(carGraphics);
-    this.addEntity(this.carEntity);
+    this.players = [null, null];
 
-    this.helicopterEntity = new HelicopterEntity();
-    this.helicopterEntity.on("fire", this.onFire, this);
-    const helicopterGraphics = this.helicopterEntity.setup(config);
-    this.physicsContainer.addChild(helicopterGraphics);
-    this.addEntity(this.helicopterEntity);
+    this.players[0] = new (this._chooseVehicleClass())([-4, 1], 0);
+    this.players[1] = new (this._chooseVehicleClass())([4, 1], 1);
+    for(let i = 0; i < 2; i++) {
+      this.players[i].on("fire", this.onFire, this);
+      this.physicsContainer.addChild(this.players[i].setup(config));
+      this.addEntity(this.players[i]);
+    }
+
+    // this.carEntity = new CarEntity();
+    // this.carEntity.on("fire", this.onFire, this);
+    // const carGraphics = this.carEntity.setup(config);
+    // this.physicsContainer.addChild(carGraphics);
+    // this.addEntity(this.carEntity);
+
+    // this.helicopterEntity = new HelicopterEntity();
+    // this.helicopterEntity.on("fire", this.onFire, this);
+    // const helicopterGraphics = this.helicopterEntity.setup(config);
+    // this.physicsContainer.addChild(helicopterGraphics);
+    // this.addEntity(this.helicopterEntity);
 
     return this.container;
   }
@@ -341,10 +351,8 @@ class BattleScene extends util.CompositeEntity {
     this.destroyBullet(bulletBody);
 
     // Handle other body
-    if(otherBody.role === "car") {
-      this.carEntity.onHit();
-    } else if(otherBody.role === "helicopter") {
-      this.helicopterEntity.onHit();
+    if(otherBody.role === "player") {
+      this.players[otherBody.playerNumber].onHit();
     } else if(otherBody.role === "bullet") {
       this.destroyBullet(otherBody);
     } else if(otherBody.role === "block") {
@@ -355,10 +363,8 @@ class BattleScene extends util.CompositeEntity {
     }
 
     // Handle scores
-    if(otherBody.role === "car") {
-      this.scores[1]++;
-    } else if(otherBody.role === "helicopter") {
-      this.scores[0]++;
+    if(otherBody.role === "player") {
+      this.scores[otherBody.playerNumber === 0 ? 1 : 0]++;
     } 
   }
 
@@ -432,9 +438,20 @@ class BattleScene extends util.CompositeEntity {
 
     this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
   }
+
+  _chooseVehicleClass() {
+    return Math.random() < 0.5 ? CarEntity : HelicopterEntity;
+  }
 }
 
 class CarEntity extends util.CompositeEntity {
+  constructor(initialPos, playerNumber) {
+    super();
+
+    this.initialPos = initialPos;
+    this.playerNumber = playerNumber;
+  }
+
   setup(config) {
     super.setup(config);
 
@@ -442,36 +459,42 @@ class CarEntity extends util.CompositeEntity {
     this.lastHitTime = 0;
     this.lastJumpTime = 0;
 
+    const collisionGroup = COLLISION_GROUPS[`PLAYER_${this.playerNumber}`];
+    const collisionMask = COLLISION_MASKS[`PLAYER_${this.playerNumber}`];
+
     this.chassisBody = new p2.Body({
         mass : 1,        // Setting mass > 0 makes it dynamic
-        position: [-4,1], // Initial position,
+        position: this.initialPos, // [-4,1], // Initial position,
         angle: Math.PI / 4,
     });
-    this.chassisBody.role = "car";
+    this.chassisBody.role = "player";
+    this.chassisBody.playerNumber = this.playerNumber;
     this.chassisShape = new p2.Box({ 
       width: 2, 
       height: 0.4,
-      collisionGroup: COLLISION_GROUPS.PLAYER_1,
-      collisionMask: COLLISION_MASKS.PLAYER_1,
+      collisionGroup,
+      collisionMask,
     });
     this.chassisBody.addShape(this.chassisShape);
     world.addBody(this.chassisBody);
     
     // Create wheels
     this.wheelBody1 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] - 0.5,0.5] });
-    this.wheelBody1.role = "car";
+    this.wheelBody1.role = "player";
+    this.wheelBody1.playerNumber = this.playerNumber;
     this.wheelBody2 = new p2.Body({ mass : 1, position:[this.chassisBody.position[0] + 0.5,0.5] });
-    this.wheelBody2.role = "car";
+    this.wheelBody2.role = "player";
+    this.wheelBody2.playerNumber = this.playerNumber;
     
     const wheelShape1 = new p2.Circle({ 
       radius: 0.4,
-      collisionGroup: COLLISION_GROUPS.PLAYER_1,
-      collisionMask: COLLISION_MASKS.PLAYER_1,
+      collisionGroup,
+      collisionMask,
     });
     const wheelShape2 = new p2.Circle({ 
       radius: 0.4,
-      collisionGroup: COLLISION_GROUPS.PLAYER_1,
-      collisionMask: COLLISION_MASKS.PLAYER_1,
+      collisionGroup,
+      collisionMask,
      });
     this.wheelBody1.addShape(wheelShape1);
     this.wheelBody2.addShape(wheelShape2);
@@ -529,32 +552,34 @@ class CarEntity extends util.CompositeEntity {
   update(options) {
     super.update(options);
 
+    const gamepad = navigator.getGamepads()[this.playerNumber];
+
     let speed = 0;
-    if(Math.abs(navigator.getGamepads()[0].axes[0]) > .15)
+    if(Math.abs(gamepad.axes[0]) > .15)
     {
-      speed = navigator.getGamepads()[0].axes[0] * MOTOR_SPEED;
+      speed = gamepad.axes[0] * MOTOR_SPEED;
     }
     this.revoluteBack.setMotorSpeed(speed);
     this.revoluteFront.setMotorSpeed(speed);
 
     // Jump
-    const jumpPressed = navigator.getGamepads()[0].buttons[0].pressed || navigator.getGamepads()[0].buttons[6].pressed;
+    const jumpPressed = gamepad.buttons[0].pressed || gamepad.buttons[6].pressed;
     if(jumpPressed && Date.now() - this.lastJumpTime > CAR_JUMP_DELAY) {
       this.lastJumpTime = Date.now();
 
       this.chassisBody.velocity[1] += CAR_JUMP_SPEED;
     }
 
-    if(navigator.getGamepads()[0].buttons[7].pressed) {
+    if(gamepad.buttons[7].pressed) {
       if(Date.now() - this.lastFireTime > CAR_FIRE_DELAY) {
         this.lastFireTime = Date.now();
 
         const bulletVelocity = [
-          navigator.getGamepads()[0].axes[2] * CAR_BULLET_SPEED,
-          -navigator.getGamepads()[0].axes[3] * CAR_BULLET_SPEED,
+          gamepad.axes[2] * CAR_BULLET_SPEED,
+          -gamepad.axes[3] * CAR_BULLET_SPEED,
         ];
 
-        this.emit("fire", "PLAYER_1", this.chassisBody.position, bulletVelocity);
+        this.emit("fire", `PLAYER_${this.playerNumber}`, this.chassisBody.position, bulletVelocity);
       }
     }
 
@@ -575,22 +600,34 @@ class CarEntity extends util.CompositeEntity {
 }
 
 class HelicopterEntity extends util.CompositeEntity {
+  constructor(initialPos, playerNumber) {
+    super();
+
+    this.initialPos = initialPos;
+    this.playerNumber = playerNumber;
+  }
+
   setup(config) {
     super.setup(config);
 
     this.lastFireTime = 0;
     this.lastHitTime = 0;
 
+    const collisionGroup = COLLISION_GROUPS[`PLAYER_${this.playerNumber}`];
+    const collisionMask = COLLISION_MASKS[`PLAYER_${this.playerNumber}`];
+
     this.chassisBody = new p2.Body({
       mass: 1,        // Setting mass > 0 makes it dynamic
-      position: [4,1], // Initial position,
+      position: this.initialPos, // [4,1], // Initial position,
     });
-    this.chassisBody.role = "helicopter";
+    this.chassisBody.role = "player";
+    this.chassisBody.playerNumber = this.playerNumber;
+
     this.chassisShape = new p2.Box({ 
       width: 1.5, 
       height: 0.85,
-      collisionGroup: COLLISION_GROUPS.PLAYER_2,
-      collisionMask: COLLISION_MASKS.PLAYER_2,
+      collisionGroup,
+      collisionMask,
     });
     this.chassisBody.addShape(this.chassisShape);
     world.addBody(this.chassisBody);
@@ -601,7 +638,6 @@ class HelicopterEntity extends util.CompositeEntity {
     this.container.addChild(this.hitGraphics);
 
     this.chassisGraphics = makePhysicsSprite("images/helicopter.png");
-    this.chassisGraphics.scale.x *= -1;
     this.container.addChild(this.chassisGraphics);
     this.addEntity(new util.PhysicsEntity(this.chassisBody, this.container));
 
@@ -616,33 +652,35 @@ class HelicopterEntity extends util.CompositeEntity {
   update(options) {
     super.update(options);
 
-    const speed = Math.abs(navigator.getGamepads()[1].axes[0]) > .15 ? 
-      navigator.getGamepads()[1].axes[0] * HELICOPTER_SPEED : 0;
-    const lift = Math.abs(navigator.getGamepads()[1].axes[1]) > .15 ?
-      -navigator.getGamepads()[1].axes[1] * HELICOPTER_LIFT : 0;
+    const gamepad = navigator.getGamepads()[this.playerNumber];
+
+    const speed = Math.abs(gamepad.axes[0]) > .15 ? 
+      gamepad.axes[0] * HELICOPTER_SPEED : 0;
+    const lift = Math.abs(gamepad.axes[1]) > .15 ?
+      -gamepad.axes[1] * HELICOPTER_LIFT : 0;
     this.chassisBody.velocity = [speed, lift]; 
 
-    // Vertical
-
     // Tilt
-    if(navigator.getGamepads()[1].axes[0] > 0.25) {
+    if(gamepad.axes[0] > 0.25) {
+      this.chassisGraphics.scale.x = 1/PHYSICS_ZOOM;
       this.chassisBody.angle = -Math.PI / 8;
-    } else if(navigator.getGamepads()[1].axes[0] < -0.25) {
+    } else if(gamepad.axes[0] < -0.25) {
+      this.chassisGraphics.scale.x = -1/PHYSICS_ZOOM;
       this.chassisBody.angle = Math.PI / 8;
     } else {
       this.chassisBody.angle = 0;
     }
 
-    if(navigator.getGamepads()[1].buttons[7].pressed) {
+    if(gamepad.buttons[7].pressed) {
       if(Date.now() - this.lastFireTime > HELICOPTER_FIRE_DELAY) {
         this.lastFireTime = Date.now();
 
         const bulletVelocity = [
-          navigator.getGamepads()[1].axes[2] * HELICOPTER_BULLET_SPEED,
-          -navigator.getGamepads()[1].axes[3] * HELICOPTER_BULLET_SPEED,
+          gamepad.axes[2] * HELICOPTER_BULLET_SPEED,
+          -gamepad.axes[3] * HELICOPTER_BULLET_SPEED,
         ];
 
-        this.emit("fire", "PLAYER_2", this.chassisBody.position, bulletVelocity);
+        this.emit("fire", `PLAYER_${this.playerNumber}`, this.chassisBody.position, bulletVelocity);
       }
     } else if(this.shootWasPressed) {
       this.shootWasPressed = false;
