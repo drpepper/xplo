@@ -39,8 +39,10 @@ const HELICOPTER_LIFT = 10;
 const HELICOPTER_BULLET_SPEED = 5;
 const CAR_BULLET_SPEED = 15;
 
-const HELICOPTER_FIRE_DELAY = 200;
-const CAR_FIRE_DELAY = 200;
+const FIRE_DELAYS = {
+  bullet: 200,
+  rocket: 800,
+};
 
 const HIT_FLASH_TIME = 100;
 
@@ -63,6 +65,7 @@ const GRAPHICAL_ASSETS = [
   "ready.png",
   "trophy.png",
   "tie.png",
+  "rocket.png",
 ];
 
 const MUSIC_ASSETS = [];
@@ -290,8 +293,8 @@ class BattleScene extends util.CompositeEntity {
 
     this.players = [null, null];
 
-    this.players[0] = new (this._chooseVehicleClass())([-7, 1], 0);
-    this.players[1] = new (this._chooseVehicleClass())([7, 1], 1);
+    this.players[0] = new (this._chooseVehicleClass())([-7, 1], 0, this._chooseBulletType());
+    this.players[1] = new (this._chooseVehicleClass())([7, 1], 1, this._chooseBulletType());
     for(let i = 0; i < 2; i++) {
       this.players[i].on("fire", this.onFire, this);
       this.physicsContainer.addChild(this.players[i].setup(config));
@@ -356,7 +359,8 @@ class BattleScene extends util.CompositeEntity {
     } else if(otherBody.role === "bullet") {
       this.destroyBullet(otherBody);
     } else if(otherBody.role === "block") {
-      otherBody.health--;
+      otherBody.health -= bulletBody.bulletType === "rocket" ? 5 : 1;
+
       if(otherBody.health <= 0) {
         this.destroyBody(otherBody);
       }
@@ -364,7 +368,7 @@ class BattleScene extends util.CompositeEntity {
 
     // Handle scores
     if(otherBody.role === "player") {
-      this.scores[otherBody.playerNumber === 0 ? 1 : 0]++;
+      this.scores[otherBody.playerNumber === 0 ? 1 : 0] += bulletBody.bulletType === "rocket" ? 3 : 1;
     } 
   }
 
@@ -418,13 +422,14 @@ class BattleScene extends util.CompositeEntity {
     this.addEntity(new util.PhysicsEntity(blockBody, blockGraphics));
   }
 
-  onFire(group, position, velocity) {
+  onFire(group, position, velocity, bulletType) {
     const bulletBody = new p2.Body({
       mass: 0.1, 
       position,
       velocity,
     });
     bulletBody.role = "bullet";
+    bulletBody.bulletType = bulletType;
     const bulletShape = new p2.Circle({ 
       radius: 0.1,
       collisionGroup: COLLISION_GROUPS[group],
@@ -433,23 +438,28 @@ class BattleScene extends util.CompositeEntity {
     bulletBody.addShape(bulletShape);
     world.addBody(bulletBody);
 
-    const bulletGraphics = makePhysicsSprite("images/bullet.png");
+    const bulletGraphics = makePhysicsSprite(`images/${bulletType}.png`);
     this.physicsContainer.addChild(bulletGraphics);
 
     this.addEntity(new util.PhysicsEntity(bulletBody, bulletGraphics));
   }
 
   _chooseVehicleClass() {
-    return Math.random() < 0.5 ? CarEntity : HelicopterEntity;
+    return _.sample([CarEntity, HelicopterEntity]);
+  }
+
+  _chooseBulletType() {
+    return _.sample(["bullet", "rocket"]);
   }
 }
 
 class CarEntity extends util.CompositeEntity {
-  constructor(initialPos, playerNumber) {
+  constructor(initialPos, playerNumber, bulletType) {
     super();
 
     this.initialPos = initialPos;
     this.playerNumber = playerNumber;
+    this.bulletType = bulletType;
   }
 
   setup(config) {
@@ -571,7 +581,7 @@ class CarEntity extends util.CompositeEntity {
     }
 
     if(gamepad.buttons[7].pressed) {
-      if(Date.now() - this.lastFireTime > CAR_FIRE_DELAY) {
+      if(Date.now() - this.lastFireTime > FIRE_DELAYS[this.bulletType]) {
         this.lastFireTime = Date.now();
 
         const bulletVelocity = [
@@ -579,7 +589,7 @@ class CarEntity extends util.CompositeEntity {
           -gamepad.axes[3] * CAR_BULLET_SPEED,
         ];
 
-        this.emit("fire", `PLAYER_${this.playerNumber}`, this.chassisBody.position, bulletVelocity);
+        this.emit("fire", `PLAYER_${this.playerNumber}`, this.chassisBody.position, bulletVelocity, this.bulletType);
       }
     }
 
@@ -600,11 +610,12 @@ class CarEntity extends util.CompositeEntity {
 }
 
 class HelicopterEntity extends util.CompositeEntity {
-  constructor(initialPos, playerNumber) {
+  constructor(initialPos, playerNumber, bulletType) {
     super();
 
     this.initialPos = initialPos;
     this.playerNumber = playerNumber;
+    this.bulletType = bulletType;
   }
 
   setup(config) {
@@ -672,7 +683,7 @@ class HelicopterEntity extends util.CompositeEntity {
     }
 
     if(gamepad.buttons[7].pressed) {
-      if(Date.now() - this.lastFireTime > HELICOPTER_FIRE_DELAY) {
+      if(Date.now() - this.lastFireTime > FIRE_DELAYS[this.bulletType]) {
         this.lastFireTime = Date.now();
 
         const bulletVelocity = [
@@ -680,7 +691,7 @@ class HelicopterEntity extends util.CompositeEntity {
           -gamepad.axes[3] * HELICOPTER_BULLET_SPEED,
         ];
 
-        this.emit("fire", `PLAYER_${this.playerNumber}`, this.chassisBody.position, bulletVelocity);
+        this.emit("fire", `PLAYER_${this.playerNumber}`, this.chassisBody.position, bulletVelocity, this.bulletType);
       }
     } else if(this.shootWasPressed) {
       this.shootWasPressed = false;
@@ -700,7 +711,6 @@ class HelicopterEntity extends util.CompositeEntity {
   getCenterPosition() {
     return this.container.position;
   }
-
 }
 
 
