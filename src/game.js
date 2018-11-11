@@ -69,6 +69,11 @@ class BattleScene extends util.CompositeEntity {
   setup(config) {
     super.setup(config);
 
+    world = new p2.World({
+      gravity: [0,-10] // Set gravity to -10 in y direction
+    });
+    world.defaultContactMaterial.friction = 100;
+
     world.on("beginContact", this.onBeginContact.bind(this));
 
     // Graphics:
@@ -176,6 +181,10 @@ class BattleScene extends util.CompositeEntity {
     world.step(1/60);
 
     super.update(options);
+  }
+
+  teardown() {
+    world.clear();
   }
 
   onBeginContact(e) {
@@ -371,7 +380,11 @@ class CarEntity extends util.CompositeEntity {
   update(options) {
     super.update(options);
 
-    const speed = navigator.getGamepads()[0].axes[0] * MOTOR_SPEED;
+    let speed = 0;
+    if(Math.abs(navigator.getGamepads()[0].axes[0]) > .15)
+    {
+      speed = navigator.getGamepads()[0].axes[0] * MOTOR_SPEED;
+    }
     this.revoluteBack.setMotorSpeed(speed);
     this.revoluteFront.setMotorSpeed(speed);
 
@@ -454,8 +467,10 @@ class HelicopterEntity extends util.CompositeEntity {
   update(options) {
     super.update(options);
 
-    const speed = navigator.getGamepads()[1].axes[0] * HELICOPTER_SPEED;
-    const lift = -navigator.getGamepads()[1].axes[1] * HELICOPTER_LIFT;
+    const speed = Math.abs(navigator.getGamepads()[1].axes[0]) > .15 ? 
+      navigator.getGamepads()[1].axes[0] * HELICOPTER_SPEED : 0;
+    const lift = Math.abs(navigator.getGamepads()[1].axes[1]) > .15 ?
+      -navigator.getGamepads()[1].axes[1] * HELICOPTER_LIFT : 0;
     this.chassisBody.velocity = [speed, lift]; 
 
     // Vertical
@@ -600,11 +615,7 @@ let pixiLoaderProgress = 0;
 let fontLoaderProgress = 0;
 let audioLoaderProgress = 0;
 
-const world = new p2.World({
-  gravity: [0,-10] // Set gravity to -10 in y direction
-});
-
-world.defaultContactMaterial.friction = 100;
+let world;
 
 window.addEventListener("gamepadconnected", function(e) {
   console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.",
