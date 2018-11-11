@@ -22,6 +22,8 @@ const COLLISION_MASKS = {
   OBSTACLE: COLLISION_GROUPS.OBSTACLE | COLLISION_GROUPS.GROUND | COLLISION_GROUPS.PLAYER_1 | COLLISION_GROUPS.PLAYER_2,
 }
 
+const BATTLE_TIME = 60000;
+
 const BLOCK_HEALTH = 5;
 
 const MOTOR_SPEED = 15;
@@ -76,11 +78,45 @@ class BattleScene extends util.CompositeEntity {
 
     world.on("beginContact", this.onBeginContact.bind(this));
 
+    this.scores = [0, 0];
+
     // Graphics:
     const bg = new PIXI.Graphics();
     bg.beginFill(0xffffff);
     bg.drawRect(0, 0, this.config.app.renderer.width, this.config.app.renderer.height);
     this.container.addChild(bg);
+
+    this.timerText = new PIXI.Text("GO" ,{
+      fontFamily : 'Courier New', 
+      fontSize: 24, 
+      fill: 0x000000, 
+      align: 'center'
+    });
+    this.timerText.anchor.set(.5, 0);
+    this.timerText.position.set(this.config.app.renderer.width / 2, 0);
+    this.container.addChild(this.timerText);
+
+    this.scoreTexts = [null, null];
+
+    this.scoreTexts[0] = new PIXI.Text("0" ,{
+      fontFamily : 'Courier New', 
+      fontSize: 24, 
+      fill: 0x000000, 
+      align: 'left'
+    });
+    this.scoreTexts[0].position.set(10, 0);
+    this.container.addChild(this.scoreTexts[0]);
+
+    this.scoreTexts[1] = new PIXI.Text("0" ,{
+      fontFamily : 'Courier New', 
+      fontSize: 24, 
+      fill: 0x000000, 
+      align: 'right'
+    });
+    this.scoreTexts[1].anchor.set(1, 0);
+    this.scoreTexts[1].position.set(this.config.app.renderer.width - 10, 0);
+    this.container.addChild(this.scoreTexts[1]);
+
 
     this.physicsContainer = new PIXI.Container();
     this.container.addChild(this.physicsContainer);
@@ -181,6 +217,16 @@ class BattleScene extends util.CompositeEntity {
     world.step(1/60);
 
     super.update(options);
+
+    this.timerText.text = `Time remaining:\n${Math.floor((BATTLE_TIME - options.timeSinceStart) / 1000)} seconds`;
+
+    for(let i = 0; i < 2; i++) {
+      this.scoreTexts[i].text = `Player ${i + 1}:\n${this.scores[i]} points`;
+    }
+  }
+
+  requestedTransition(options) {
+    return options.timeSinceStart > BATTLE_TIME; 
   }
 
   teardown() {
@@ -211,6 +257,13 @@ class BattleScene extends util.CompositeEntity {
         this.destroyBody(otherBody);
       }
     }
+
+    // Handle scores
+    if(otherBody.role === "car") {
+      this.scores[1]++;
+    } else if(otherBody.role === "helicopter") {
+      this.scores[0]++;
+    } 
   }
 
   destroyBody(body) {
