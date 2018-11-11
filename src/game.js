@@ -25,6 +25,9 @@ const COLLISION_MASKS = {
 const BLOCK_HEALTH = 5;
 
 const MOTOR_SPEED = 15;
+const CAR_JUMP_DELAY = 2000;
+const CAR_JUMP_SPEED = 20;
+
 
 const HELICOPTER_SPEED = 10;
 const HELICOPTER_LIFT = 10;
@@ -279,7 +282,7 @@ class CarEntity extends util.CompositeEntity {
 
     this.lastFireTime = 0;
     this.lastHitTime = 0;
-
+    this.lastJumpTime = 0;
 
     this.chassisBody = new p2.Body({
         mass : 1,        // Setting mass > 0 makes it dynamic
@@ -372,6 +375,14 @@ class CarEntity extends util.CompositeEntity {
     this.revoluteBack.setMotorSpeed(speed);
     this.revoluteFront.setMotorSpeed(speed);
 
+    // Jump
+    const jumpPressed = navigator.getGamepads()[0].buttons[0].pressed || navigator.getGamepads()[0].buttons[6].pressed;
+    if(jumpPressed && Date.now() - this.lastJumpTime > CAR_JUMP_DELAY) {
+      this.lastJumpTime = Date.now();
+
+      this.chassisBody.velocity[1] += CAR_JUMP_SPEED;
+    }
+
     if(navigator.getGamepads()[0].buttons[7].pressed) {
       if(Date.now() - this.lastFireTime > CAR_FIRE_DELAY) {
         this.lastFireTime = Date.now();
@@ -383,8 +394,6 @@ class CarEntity extends util.CompositeEntity {
 
         this.emit("fire", "PLAYER_1", this.chassisBody.position, bulletVelocity);
       }
-    } else if(this.shootWasPressed) {
-      this.shootWasPressed = false;
     }
 
     if(this.hitGraphics.visible && Date.now() - this.lastHitTime > HIT_FLASH_TIME) {
