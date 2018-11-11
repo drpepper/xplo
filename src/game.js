@@ -427,6 +427,7 @@ class BattleScene extends util.CompositeEntity {
       mass: 0.1, 
       position,
       velocity,
+      angle: Math.atan2(velocity[1], velocity[0]),
     });
     bulletBody.role = "bullet";
     bulletBody.bulletType = bulletType;
