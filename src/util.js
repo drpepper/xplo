@@ -1355,7 +1355,7 @@ export class LoadingScene extends CompositeEntity {
         this.shouldUpdateProgress = false;
       }
     } else if(this.state === "ready") {
-      if(navigator.getGamepads().length > 0) {
+      if(_.filter(navigator.getGamepads(), _.identity).length >= 2) {
         this.state = "done";
       }
     }
@@ -1374,8 +1374,8 @@ export class LoadingScene extends CompositeEntity {
     const playButton = new PIXI.Sprite(this.config.app.loader.resources["images/play.png"].texture);
     playButton.anchor.set(0.5);
     playButton.position.set(this.config.app.screen.width / 2, this.config.app.screen.height * 3/4);
-    this._on(playButton, "pointertap", () => this.state = "done");
-    playButton.interactive = true;
+    // this._on(playButton, "pointertap", () => this.state = "done");
+    // playButton.interactive = true;
     this.container.addChild(playButton);
   }
 }

@@ -585,7 +585,8 @@ class CarEntity extends util.CompositeEntity {
   update(options) {
     super.update(options);
 
-    const gamepad = navigator.getGamepads()[this.playerNumber];
+    const gamepad = _.filter(navigator.getGamepads(), _.identity)[this.playerNumber];
+
 
     let speed = 0;
     if(Math.abs(gamepad.axes[0]) > .15)
@@ -686,7 +687,7 @@ class HelicopterEntity extends util.CompositeEntity {
   update(options) {
     super.update(options);
 
-    const gamepad = navigator.getGamepads()[this.playerNumber];
+    const gamepad = _.filter(navigator.getGamepads(), _.identity)[this.playerNumber];
 
     const speed = Math.abs(gamepad.axes[0]) > .15 ? 
       gamepad.axes[0] * HELICOPTER_SPEED : 0;
